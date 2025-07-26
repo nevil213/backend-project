@@ -5,8 +5,26 @@ import { asyncHandler } from "../utils/asyncHandler.js";
 import { uploadOnCloudinary } from "../utils/cloudinary.js";
 import fs from "fs"
 
-
-const registerUser = asyncHandler( async (req, res, next) => {
+const generateAccessAndRefreshToken = async (userid) => {
+    try {
+            const user = await User.findById(userid);
+            
+            const accessToken = user.generateAccessToken();
+            const refreshToken = user.generateRefreshToken();
+            
+            user.refreshToken = refreshToken;
+            
+            await user.save({ validateBeforeSave: false });
+            
+            return { accessToken, refreshToken }
+            
+    }
+    catch (error) {
+        throw new ApiError(500, "Something went wrong while generatin access token and refresh token")
+    }
+}
+    
+    const registerUser = asyncHandler( async (req, res, next) => {
 
     /*
         1. use mongodb User model
@@ -144,4 +162,91 @@ const registerUser = asyncHandler( async (req, res, next) => {
             }
         })
             
-            export { registerUser };
+
+const loginUser = asyncHandler( async (req, res, next) => {
+    // get email/username & password from frontend
+    // or get refreshtoken from user
+    // compare with the databse with findone
+    // password check
+    // gen accesstoken & refrshtoken -> send via secure cookie
+
+    const { username, email, password } = req.body;
+
+    if(!username || !email){
+        throw new ApiError(400, "username or email required");
+    }
+
+    const user = await User.findOne({
+        $or: [{email}, {username}]
+    })
+    
+    if(!user){
+        throw new ApiError(404, "user doesn't exists")
+    }
+    
+    const isAuthorized = await user.isPasswordCorrect(password)
+    
+    if(!isAuthorized){
+        throw new ApiError(401, "invalid user credentials")
+    }
+
+    await generateAccessAndRefreshToken(user._id);
+
+    const loggedInUser = await User.findById(user._id).select("-password -refreshToken");
+
+    const options = {
+        httpOnly: true,
+        secure: true
+    }
+
+    return res
+    .status(200)
+    .cookie("accessToken", accessToken, options)
+    .cookie("refreshToken", refreshToken, options)
+    .json(
+        new ApiResponse(
+            200,
+            {
+                user: loggedInUser, accessToken, refreshToken
+            },
+            "user logged in successfully"
+        )
+    );
+
+})
+
+const logOutUser = asyncHandler( async (req, res, next) => {
+    // 1. need _id of user --> via auth middleware
+    // 2. delete cookies from browser
+    // 3. delete refreshToken from database
+
+    // const user = await User.findById(req.user._id);
+    // user.refreshToken = "";
+
+    // await user.save({validateBeforeSave: false});
+
+
+    // alternative method for find + update
+    await User.findByIdAndUpdate(req.user._id,
+        {
+            $set: {
+                refreshToken: undefined
+            }
+        },
+        {
+            new: true  // if we take reference of this to variable, will get new instance of after updation. without this default is old instance one
+        }
+    )
+
+    const options = {
+        httpOnly: true,
+        secure: true
+    }
+
+    return res.status(200).clearCookie("accessToken", options).clearCookie("refreshToken", options).json(
+        new ApiResponse(200, "", "user logged out successfully")
+    )
+})
+
+
+export { registerUser, loginUser, logOutUser };
