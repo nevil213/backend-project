@@ -8,8 +8,11 @@ import fs from "fs"
 const generateAccessAndRefreshToken = async (userid) => {
     try {
             const user = await User.findById(userid);
+
+            // console.log("user from func:", user);
             
             const accessToken = user.generateAccessToken();
+            // console.log(accessToken);
             const refreshToken = user.generateRefreshToken();
             
             user.refreshToken = refreshToken;
@@ -20,7 +23,8 @@ const generateAccessAndRefreshToken = async (userid) => {
             
     }
     catch (error) {
-        throw new ApiError(500, "Something went wrong while generatin access token and refresh token")
+        // console.log(error);
+        throw new ApiError(500, `Something went wrong while generatin access token and refresh token`)
     }
 }
     
@@ -170,10 +174,13 @@ const loginUser = asyncHandler( async (req, res, next) => {
     // password check
     // gen accesstoken & refrshtoken -> send via secure cookie
 
+    // console.log(req.body);
+
     const { username, email, password } = req.body;
 
-    if(!username || !email){
-        throw new ApiError(400, "username or email required");
+
+    if((!username && !email)){
+        throw new ApiError(400, "either username or email required");
     }
 
     const user = await User.findOne({
@@ -190,7 +197,9 @@ const loginUser = asyncHandler( async (req, res, next) => {
         throw new ApiError(401, "invalid user credentials")
     }
 
-    await generateAccessAndRefreshToken(user._id);
+    // console.log("user_id: ", user._id)
+
+    const { accessToken, refreshToken } = await generateAccessAndRefreshToken(user._id);
 
     const loggedInUser = await User.findById(user._id).select("-password -refreshToken");
 
