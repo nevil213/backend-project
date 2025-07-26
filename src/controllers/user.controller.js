@@ -3,6 +3,8 @@ import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { uploadOnCloudinary } from "../utils/cloudinary.js";
+import fs from "fs"
+
 
 const registerUser = asyncHandler( async (req, res, next) => {
 
@@ -27,64 +29,119 @@ const registerUser = asyncHandler( async (req, res, next) => {
 
     */
 
-    const { username, email, fullname, password } = req.body;
 
-    // console.log(username, email, fullname, password);
+    try {
+   
+            const { username, email, fullname, password } = req.body;
+            
+            // console.log("req.body: ", req.body);
+            
+            // console.log(username, email, fullname, password);
+            
+            if(!username || username === ""){
+                    throw new ApiError(400, "username should not be empty")
+            }
+            else if(!email || email === ""){
+                    throw new ApiError(400, "email should not be empty")
+            }
+            else if(!password || password === ""){
+                    throw new ApiError(400, "password should not be empty")
+            }
+            else if(!fullname || fullname === ""){
+                    throw new ApiError(400, "full name should not be empty")
+            }
+                
+                // if(
+                //     [ username, email, fullname, password ].some((field) => (
+                //         field === ""))
+                //     ) {
+                //         throw new ApiError(400, "All fields are compulsory")
+                //     }
+                    
+                    
+                    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+                    if(!emailRegex.test(email)){
+                        throw new ApiError(400, "invalid email format");
+                    }
+                    
+                    
+                    const existedUser = await User.findOne({
+                        $or: [{ username }, { email }]
+                    })
+                    
+                    if(existedUser){
+                        throw new ApiError(409, "user with same username or email already exists")
+                    }
+                    
+                    // const avatarLocalPath = req.files?.avatar[0]?.path;
+                    // const coverImageLocalPath = req.files?.coverImage[0]?.path;
+                    
+                    // console.log("req.files: ", req.files);
+                    
+                    let avatarLocalPath;
+                    
+                    if(req.files && Array.isArray(req.files.avatar)){
+                        avatarLocalPath = req.files.avatar[0].path;
+                    }
+                    
+                    let coverImageLocalPath;
+                    
+                    // console.log(req.files?.coverImage[0]?.legth)
+                    
+                    if(req.files && Array.isArray(req.files.coverImage)){
+                        coverImageLocalPath = req.files.coverImage[0].path;
+                    }
+                    
+                    if(!avatarLocalPath) throw new ApiError(400, "avatar file is required");
+                    
+                    const avatarResponse = await uploadOnCloudinary(avatarLocalPath);
+                    
+                    if(!avatarResponse){
+                        throw new ApiError(400, "avatar file is required");
+                    }
+                    
 
-    // if(username === ""){
-    //     throw new ApiError(400, "username should not be empty")
-    // }
+                    let coverImageResponse;
 
-    if(
-        [ username, email, fullname, password ].some((field) => (
-            field?.some === ""))
-    ) {
-        throw new ApiError(400, "All fields are compulsory")
-    }
+                    if(coverImageLocalPath){
 
-    const existedUser = await User.findOne({
-        $or: [{ username }, { email }]
-    })
-
-    if(existedUser){
-        throw new ApiError(409, "user with same username or email already exists")
-    }
-
-    const avatarLocalPath = req.files?.avatar[0]?.path;
-    const coverImageLocalPath = req.files?.coverImage[0]?.path;
-
-    if(!avatarLocalPath) throw new ApiError(400, "avatar file is required");
-
-    const avatarResponse = await uploadOnCloudinary(avatarLocalPath);
-     
-    if(!avatarResponse){
-            throw new ApiError(400, "avatar file is required");
-    }
-
-    if(coverImageLocalPath){
-        const coverImageResponse = await uploadOnCloudinary(coverImageLocalPath);
-    }
-
-    
-    const user = await User.create({
-        username: username.toLowercase(),
-        email: email.toLowercase(),
-        password,
-        avatar: avatarResponse.url,
-        coverImage: coverImageResponse?.url || "",
-        fullname
-    });
-
-    const createdUser = await User.findById(user._id).select("-password -refreashToken");
-
-    if(!createdUser){
-        throw new ApiError(500, "Something went wrong while registering the user");
-    }
-    
-    return res.status(201).json(
-        new ApiResponse(200, "user registed successfully")
-    )
-
-})
-
-export { registerUser };
+                        // console.log("coverImageLocalPath: ", coverImageLocalPath)
+                        
+                        coverImageResponse = await uploadOnCloudinary(coverImageLocalPath);
+                        
+                    }
+                    
+                    // console.log("coverImageResponse: ", coverImageResponse)
+                    
+                    const user = await User.create({
+                        username: username.toLowerCase(),
+                        email: email.toLowerCase(),
+                        password,
+                        avatar: avatarResponse.url,
+                        coverImage: coverImageResponse?.url || "",
+                        fullname
+                    });
+                    
+                    // console.log("MONGODB user: ", user);
+                    
+                    const createdUser = await User.findById(user._id).select("-password -refreashToken");
+                    
+                    // console.log("MONGODB user after removing password, refresh token: ", createdUser);
+                    
+                    if(!createdUser){
+                        throw new ApiError(500, "Something went wrong while registering the user");
+                    }
+                    
+                    return res.status(201).json(
+                        new ApiResponse(200, createdUser, "user registed successfully")
+                    )
+                
+            } catch (error) {
+                
+                if(req.files && Array.isArray(req.files?.avatar) && fs.existsSync(req.files?.avatar[0]?.path)) fs.unlinkSync(req.files?.avatar[0]?.path);
+                if(req.files && Array.isArray(req.files?.coverImage) && fs.existsSync(req.files.coverImage[0]?.path)) fs.unlinkSync(req.files.coverImage[0].path);
+                next(error);
+            }
+        })
+            
+            export { registerUser };

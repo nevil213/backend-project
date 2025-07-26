@@ -1,13 +1,13 @@
 class ApiError extends Error {
     // Constructor to initialize the custom error class
     constructor(
-        successCode, // The status code indicating the success or failure of the operation
+        statusCode, // The status code indicating the success or failure of the operation
         message = "Something went wrong", // Default error message
         errors = [], // Array to hold specific error details
         stack = "" // Optional stack trace for debugging
     ){
         super(message) // Call the parent Error class constructor with the message
-        this.successCode = successCode // Assign the success code to the instance
+        this.statusCode = statusCode // Assign the statusCode to the instance
         this.data = false // Default data property to indicate no data
         this.message = message // Assign the error message to the instance
         this.errors = errors // Assign the errors array to the instance

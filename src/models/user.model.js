@@ -18,7 +18,8 @@ const userSchema = new mongoose.Schema(
             required: true,
             unique: true,
             lowercase: true,
-            trim: true
+            trim: true,
+            match:  /^[^\s@]+@[^\s@]+\.[^\s@]+$/
         },
         fullname: {
             type: String,
