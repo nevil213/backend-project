@@ -5,6 +5,8 @@ import { asyncHandler } from "../utils/asyncHandler.js";
 import { uploadOnCloudinary } from "../utils/cloudinary.js";
 import fs from "fs"
 import jwt from "jsonwebtoken"
+import bcrypt from "bcrypt";
+import { deleteCloudinaryImage } from "../utils/deleteCloudinaryImage.js";
 
 const generateAccessAndRefreshToken = async (userid) => {
     try {
@@ -29,7 +31,7 @@ const generateAccessAndRefreshToken = async (userid) => {
     }
 }
     
-    const registerUser = asyncHandler( async (req, res, next) => {
+const registerUser = asyncHandler( async (req, res, next) => {
 
     /*
         1. use mongodb User model
@@ -311,4 +313,196 @@ const refreshAccessToken = asyncHandler ( async (req, res, next) => {
 
 })
 
-export { registerUser, loginUser, logOutUser, refreshAccessToken };
+const changeCurrentPassword = asyncHandler ( async (req, res) => {
+    
+    const { oldPassword, newPassword, confirmPassword } = req.body;
+
+    if(!(oldPassword && newPassword && confirmPassword)){
+        throw new ApiError(400, "old password, new password and confirm password are required");
+    }
+
+    if(newPassword !== confirmPassword){
+        throw new ApiResponse(400, "new password and confirm password should be same");
+    }
+
+    const user = await User.findById(req.user?._id);
+
+    // const isAuthorized = await bcrypt.compare(oldPassword, user.password);
+
+    const isAuthorized = await user.isPasswordCorrect(oldPassword)
+    
+    if(!isAuthorized){
+        throw new ApiError(401, "password is not correct");
+    }
+
+    user.password = newPassword;
+
+    user.save({ validateBeforeSave: false });
+
+    return res.status(200).json(
+        new ApiResponse(200, "", "Password changed successfully")
+    )
+
+})
+
+const getCurrentUser = asyncHandler ( async (req, res) => {
+    
+    // if(!req.user){
+    //     throw new ApiError(401, "unauthorized access")
+    // }
+
+    return res.status(200).json(
+        new ApiResponse(200, req.user, "user fetched successfully")
+    );
+})
+
+const updateAccountDetails = asyncHandler( async (req, res) => {
+    const { fullName, email } = req.body;
+
+    if(!(fullName && email)){
+        throw new ApiError("all fields are required");
+    }
+
+    const user = await User.findByIdAndUpdate(
+        req.user?._id,
+        {
+            $set: {
+                fullName,
+                email
+            }
+        },
+        {
+            new: true
+        }
+    ).select("-password -refreshToken");
+
+    const accessToken = await user.generateAccessToken();
+
+    return res.status(200).json(
+        new ApiResponse(
+            200,
+            {
+                accessToken,
+                user
+            },
+            "Account details updated successfully"
+        )
+    )
+
+} ) 
+
+const updateUserAvatar = asyncHandler( async (req, res) => {
+    const avatarLocalPath = req.file?.path;
+
+    if(!avatarLocalPath){
+        throw new ApiError(400, "Avatar file is missing");
+    }
+
+    const avatar = await uploadOnCloudinary(avatarLocalPath);
+
+    if(!avatar.url){
+        throw new ApiError(400, "avatar uploading failed");
+    }
+
+    const oldUser = await User.findById(req.user?._id);
+
+    // http://res.cloudinary.com/cac-backend-project/image/upload/v12344/abcd.jpg
+    let imagePublicId = oldUser?.avatar.split("/")
+    // console.log(imagePublicId);
+    // console.log(imagePublicId.length);
+    imagePublicId = imagePublicId[imagePublicId.length - 1];
+    // console.log(imagePublicId);
+    imagePublicId = imagePublicId.split(".")[0];
+    // console.log(imagePublicId);
+
+    await deleteCloudinaryImage(imagePublicId)
+
+    const user = await User.findByIdAndUpdate(
+        req.user?._id,
+        {
+            $set: {
+                avatar: avatar.url
+            }
+        },
+        {
+            new: true
+        }
+    ).select("-password -refreshToken")
+
+    return res.status(200).json(
+        new ApiResponse(200, user, "user avatar updated successfully")
+    );
+
+});
+
+const updateUserCoverImage = asyncHandler( async (req, res) => {
+    const coverImageLocalPath = req.file?.path;
+
+    if(!coverImageLocalPath){
+        throw new ApiError(400, "Cover Image file is missing");
+    }
+
+    const coverImage = await uploadOnCloudinary(coverImageLocalPath);
+
+    if(!coverImage.url){
+        throw new ApiError(400, "Cover Image uploading failed");
+    }
+
+    const oldUser = await User.findById(req.user?._id);
+
+    if(oldUser.coverImage){
+        
+        let imagePublicId = oldUser?.coverImage.split("/");
+        imagePublicId = imagePublicId[imagePublicId.length - 1];
+        imagePublicId = imagePublicId.split(".");
+        imagePublicId = imagePublicId[0];
+        
+        await deleteCloudinaryImage(imagePublicId);
+    }
+
+    const user = await User.findByIdAndUpdate(
+        req.user?._id,
+        {
+            $set: {
+                coverImage: coverImage.url
+            }
+        },
+        {
+            new: true
+        }
+    ).select("-password -refreshToken")
+
+    return res.status(200).json(
+        new ApiResponse(200, user, "Cover Image updated successfully")
+    );
+
+});
+
+const removCoverImage = asyncHandler( async (req, res) => {
+    const user = await User.findById(req.user?._id);
+
+    if(user.coverImage){
+        try {
+                    let imagePublicId = user.coverImage.split("/");
+                    imagePublicId = imagePublicId[imagePublicId.length - 1];
+                    imagePublicId = imagePublicId.split(".");
+                    imagePublicId = imagePublicId[0];
+            
+                    await deleteCloudinaryImage(imagePublicId);
+            
+                    user.coverImage = undefined;
+            
+                    await user.save();
+            
+                    return res.status(200).json(
+                        new ApiResponse(200, "", "cover image removed successfully")
+                    );
+        } catch (error) {
+            throw new ApiError(500, "something went wrong while removing cover image")
+        }
+    }
+
+    throw new ApiError(404, "cover image is already unset");
+})
+
+export { registerUser, loginUser, logOutUser, refreshAccessToken, changeCurrentPassword, getCurrentUser, updateAccountDetails, updateUserAvatar, updateUserCoverImage, removCoverImage };
