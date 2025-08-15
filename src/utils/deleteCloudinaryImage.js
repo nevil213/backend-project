@@ -18,6 +18,7 @@ export const deleteCloudinaryImage = async function (public_id) {
     // NOTE:  we are not checking whether user is authorized to delete cloudinary image or not!!
 
     await cloudinary.uploader.destroy(public_id).then(() => {
+        // console.log("cloudinary image deleted successfully");
         return new ApiResponse(200, "", "cloudinary image deleted successfully");
     }).catch((error) => {
         console.log(error)

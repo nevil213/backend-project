@@ -122,7 +122,7 @@ const registerUser = asyncHandler( async (req, res, next) => {
                     const avatarResponse = await uploadOnCloudinary(avatarLocalPath);
                     
                     if(!avatarResponse){
-                        throw new ApiError(400, "avatar file is required");
+                        throw new ApiError(400, "failed to upload avatar file");
                     }
                     
 
@@ -241,8 +241,11 @@ const logOutUser = asyncHandler( async (req, res, next) => {
     // alternative method for find + update
     await User.findByIdAndUpdate(req.user._id,
         {
-            $set: {
-                refreshToken: undefined
+            // $set: {
+            //     refreshToken: null
+            // }
+            $unset: {
+                refreshToken: 1
             }
         },
         {
@@ -262,7 +265,7 @@ const logOutUser = asyncHandler( async (req, res, next) => {
 
 const refreshAccessToken = asyncHandler ( async (req, res, next) => {
     
-    const incomingRefreshToken = req.cookie?.refreshToken
+    const incomingRefreshToken = req.cookies?.refreshToken
     
     if(!incomingRefreshToken){
         throw new ApiError(401, "Unauthorized access");
@@ -322,7 +325,7 @@ const changeCurrentPassword = asyncHandler ( async (req, res) => {
     }
 
     if(newPassword !== confirmPassword){
-        throw new ApiResponse(400, "new password and confirm password should be same");
+        throw new ApiError(400, "new password and confirm password should be same");
     }
 
     const user = await User.findById(req.user?._id);
@@ -367,7 +370,7 @@ const updateAccountDetails = asyncHandler( async (req, res) => {
         req.user?._id,
         {
             $set: {
-                fullName,
+                fullname: fullName,
                 email
             }
         },
@@ -378,13 +381,15 @@ const updateAccountDetails = asyncHandler( async (req, res) => {
 
     const accessToken = await user.generateAccessToken();
 
-    return res.status(200).json(
+    const options = {
+        httpOnly: true,
+        secure: true
+    }
+
+    return res.status(200).cookie("accessToken", accessToken, options ).json(
         new ApiResponse(
             200,
-            {
-                accessToken,
-                user
-            },
+            user,
             "Account details updated successfully"
         )
     )
@@ -406,7 +411,7 @@ const updateUserAvatar = asyncHandler( async (req, res) => {
 
     const oldUser = await User.findById(req.user?._id);
 
-    // http://res.cloudinary.com/cac-backend-project/image/upload/v12344/abcd.jpg
+    // http://res.cloudinary.com/cac-backend-project/image/upload/v12344/abcd.jpg // abcd is public id
     let imagePublicId = oldUser?.avatar.split("/")
     // console.log(imagePublicId);
     // console.log(imagePublicId.length);
@@ -546,7 +551,7 @@ const getUserProfile = asyncHandler( async (req, res) => {
                     // $sum: {
                     //     subscribedTo: 1
                     // }
-                    $size: "$subscriberTo"
+                    $size: "$subscribedTo"
                 },
                 isSubscribed: {
                     $cond: {
@@ -587,7 +592,7 @@ const getWatchHistory = asyncHandler( async (req, res) => {
     const user = await User.aggregate([
         {
             $match: {
-                _id: new mongoose.Types.ObjectId(req.user?._id)
+                _id: req.user?._id
             }
         },
         {
