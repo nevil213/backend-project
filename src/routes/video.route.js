@@ -28,3 +28,6 @@ router.route("/v/change-thumbail/:videoId").patch(upload.single({
 }), updateThumbnail);
 
 router.route("/toggle-publish-status").put(togglePublishStatus);
+
+
+export default router;

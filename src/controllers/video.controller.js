@@ -146,7 +146,7 @@ const updateVideoDetails = asyncHandler(async (req, res) => {
         video.title = title;
         video.description = description;
     
-        video.save({ validateBeforeSave: false });
+        await video.save({ validateBeforeSave: false });
     
         return res.status(200).json(
             new ApiResponse(200, "", "video details updated successfully")
@@ -193,7 +193,7 @@ const updateThumbnail = asyncHandler ( async (req, res) => {
         await deleteCloudinaryImage(thumbnailID);
     
         // video.thumbnail = thumbnail.url
-        // video.save({ validateBeforeSave: false });
+        // await video.save({ validateBeforeSave: false });
     
         const finalVideo = await Video.findByIdAndUpdate(videoId,
             {
@@ -242,7 +242,7 @@ const togglePublishStatus = asyncHandler(async (req, res) => {
     
         video.isPublished = !video.isPublished;
         
-        video.save({ validateBeforeSave: false });
+        await video.save({ validateBeforeSave: false });
     
         return res.status(200).json(
             new ApiResponse(200, "", "pubish status of video toggled successfully")

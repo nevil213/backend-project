@@ -1,4 +1,4 @@
-import mongoose from "mongoose"
+import mongoose, { connect } from "mongoose"
 import {Comment} from "../models/comment.model.js"
 import {ApiError} from "../utils/ApiError.js"
 import {ApiResponse} from "../utils/ApiResponse.js"
@@ -13,19 +13,77 @@ const getVideoComments = asyncHandler(async (req, res) => {
 
 const addComment = asyncHandler(async (req, res) => {
     // TODO: add a comment to a video
+
+    const { videoID } = req.params;
+    const { content } = req.body;
+
+    if(!(videoID && content)){
+        throw new ApiError(400, "video id and content required, for comment");
+    }
+
+    const comment = await Comment.create({
+        content,
+        video: videoID,
+        owner: req.user?._id
+    })
+
+    if(!comment){
+        throw new ApiError(500, "failed to add comment");
+    }
+
+    return res.status(200).json(
+        new ApiResponse(200, "", "comment added successfully")
+    )
 })
 
 const updateComment = asyncHandler(async (req, res) => {
     // TODO: update a comment
+    const { commentId } = req.params;
+    const { content } = req.body;
+    
+    if(!commentId){
+        throw new ApiError(400, "comment if required to update comment");
+    }
+
+    const comment = await Comment.findById(commentId);
+
+    if(comment.owner != req.user._id){
+        throw new ApiError(401, "you are not authorized to update this comment");
+    }
+
+    comment.content = content;
+    await content.save({ validateBeforeSave: false });
+    
+    return res.status(200).json(
+        new ApiResponse(200, "", "comment updated successfully")
+    )
+
 })
 
 const deleteComment = asyncHandler(async (req, res) => {
     // TODO: delete a comment
+    const { commentId } = req.params;
+
+    if(!commentId){
+        throw new ApiError(400, "comment id is required for delete comment");
+    }
+
+    const comment = await Comment.findById(commentId);
+
+    if(comment.owner != req.user?._id){
+        throw new ApiError(401, "You are not authorized to delete this comment");
+    }
+
+    await Comment.findByIdAndDelete(commentId);
+
+    return res.status(200).json(
+        new ApiResponse(200, "", "comment deleted successfully")
+    )
 })
 
 export {
     getVideoComments, 
     addComment, 
     updateComment,
-     deleteComment
-    }
+    deleteComment
+}
