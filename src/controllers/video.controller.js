@@ -66,7 +66,8 @@ const getVideoById = asyncHandler(async (req, res) => {
         const video = await Video.aggregate([
             {
                 $match: {
-                    _id: videoId.trim()
+                    _id: videoId.trim(),
+                    isPublished: true
                 }
             },
             {
