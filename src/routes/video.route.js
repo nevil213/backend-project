@@ -1,7 +1,7 @@
 import { Router } from "express";
-import { getVideoById, publishAVideo, togglePublishStatus, updateThumbnail, updateVideoDetails } from "../controllers/video.controller";
-import { upload } from "../middlewares/multer.middleware";
-import { verifyJWT } from "../middlewares/auth.middleware";
+import { deleteVideo, getVideoById, publishAVideo, togglePublishStatus, updateThumbnail, updateVideoDetails } from "../controllers/video.controller.js";
+import { upload } from "../middlewares/multer.middleware.js";
+import { verifyJWT } from "../middlewares/auth.middleware.js";
 
 const router = Router();
 
@@ -22,12 +22,11 @@ router.route("/v/:videoId").get(getVideoById);
 
 router.route("/v/change-details/:videoId").patch(updateVideoDetails);
 
-router.route("/v/change-thumbail/:videoId").patch(upload.single({
-    name: "thumbnail",
-    maxCount: 1
-}), updateThumbnail);
+router.route("/v/change-thumbnail/:videoId").patch(upload.single("thumbnail"), updateThumbnail);
 
-router.route("/toggle-publish-status").put(togglePublishStatus);
+router.route("/v/delete-video/:videoId").delete(deleteVideo);  // remained for testing
+
+router.route("/v/toggle-publish-status/:videoId").post(togglePublishStatus);
 
 
 export default router;

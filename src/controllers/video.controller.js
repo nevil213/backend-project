@@ -1,6 +1,7 @@
 import mongoose, {isValidObjectId} from "mongoose"
 import {Video} from "../models/video.model.js"
 import {User} from "../models/user.model.js"
+import {Like} from "../models/like.model.js"
 import {ApiError} from "../utils/ApiError.js"
 import {ApiResponse} from "../utils/ApiResponse.js"
 import {asyncHandler} from "../utils/asyncHandler.js"
@@ -20,14 +21,16 @@ const publishAVideo = asyncHandler(async (req, res) => {
         if(!(title && description)){
             throw new ApiError(200, "Title and Description required")
         }
+
+        // console.log(req.files?.video[0]?.path);
     
-        const videoRes = await uploadOnCloudinary(req.file?.video);
+        const videoRes = await uploadOnCloudinary(req.files?.video[0]?.path);
     
         if(!videoRes){
             throw new ApiError(200, "failed to upload video")
         }
         
-        const thumbnailRes = await uploadOnCloudinary(req.file?.thumbnail);
+        const thumbnailRes = await uploadOnCloudinary(req.files?.thumbnail[0]?.path);
         
         if(!thumbnailRes){
             throw new ApiError(200, "failed to upload video")
@@ -50,6 +53,7 @@ const publishAVideo = asyncHandler(async (req, res) => {
             new ApiResponse(200, video,"video published successfully")
         )
     } catch (error) {
+        console.log(error)
         throw new ApiError(500, "something went wrong while publishing a video")
     }
 
@@ -66,50 +70,51 @@ const getVideoById = asyncHandler(async (req, res) => {
         const video = await Video.aggregate([
             {
                 $match: {
-                    _id: videoId.trim(),
+                    // _id: videoId.trim(),
+                    _id: new mongoose.Types.ObjectId(videoId.trim()),
                     isPublished: true
                 }
             },
-            {
-                $lookup: {
-                    from: "users",
-                    localField: "owner",
-                    foreignField: "_id",
-                    as: "owner",
-                    pipeline: [
-                        {
-                            $lookup: {
-                                from: "subscriptions",
-                                localField: "_id",
-                                foreignField: "channel",
-                                as: "subscribers"
-                            }
-                        },
-                        {
-                            $addFields: {
-                                "subscriberCount": {
-                                    $size: "$subsribers"
-                                }
-                            }
-                        },
-                        {   
-                            $project: {
-                                username: 1,
-                                fullname: 1,
-                                avatar: 1,
-                                subscriberCount: 1
-                            }
-                        }
-                    ]
-                }
-            },
-            {
-                $addFields: {
-                    owner: {
-                        $first: "$owner"
-                    }
-                }
-            }
+            // {
+            //     $lookup: {
+            //         from: "users",
+            //         localField: "owner",
+            //         foreignField: "_id",
+            //         as: "owner",
+            //         pipeline: [
+            //             {
+            //                 $lookup: {
+            //                     from: "subscriptions",
+            //                     localField: "_id",
+            //                     foreignField: "channel",
+            //                     as: "subscribers"
+            //                 }
+            //             },
+            //             {
+            //                 $addFields: {
+            //                     "subscriberCount": {
+            //                         $size: "$subsribers"
+            //                     }
+            //                 }
+            //             },
+            //             {   
+            //                 $project: {
+            //                     username: 1,
+            //                     fullname: 1,
+            //                     avatar: 1,
+            //                     subscriberCount: 1
+            //                 }
+            //             }
+            //         ]
+            //     }
+            // },
+            // {
+            //     $addFields: {
+            //         owner: {
+            //             $first: "$owner"
+            //         }
+            //     }
+            // }
         ])
     
         if(!video){
@@ -120,7 +125,7 @@ const getVideoById = asyncHandler(async (req, res) => {
             new ApiResponse(200, video, "video fetched successfully")
         )
     } catch (error) {
-        throw new ApiError(500, "Something went wrong while fetching wrong")
+        throw new ApiError(500, "Something went wrong while fetching video")
     }
 })
 
@@ -140,19 +145,29 @@ const updateVideoDetails = asyncHandler(async (req, res) => {
     
         const video = await Video.findById(videoId);
     
-        if(video.owner != req.user?._id){
+        if(!video.owner.equals(req.user?._id)){
             throw new ApiError(401, "You are not authorized to update video details")
         }
     
-        video.title = title;
-        video.description = description;
+        // video.title = title;
+        // video.description = description;
     
-        await video.save({ validateBeforeSave: false });
+        // await video.save({ validateBeforeSave: false });
+
+        // above method will set description blank if not changed/given by user
     
+        await Video.findByIdAndUpdate(videoId, {
+            $set: {
+                title,
+                description
+            }
+        })
+
         return res.status(200).json(
             new ApiResponse(200, "", "video details updated successfully")
         )
     } catch (error) {
+        console.log(error)
         throw new ApiError(500, "something went wrong while updating video details")
     }
 
@@ -168,11 +183,12 @@ const updateThumbnail = asyncHandler ( async (req, res) => {
     
         const video = await Video.findById(videoId);
     
-        if(video.owner != req.user?._id){
+        if(!video.owner.equals(req.user?._id)){
             throw new ApiError(401, "You are not authorized to update thumbnail")
         }
     
-        const thumbnailPath = req.file?.thumbnail;
+        console.log("req.file", req.file);
+        const thumbnailPath = req.file?.path;
     
         if(!thumbnailPath){
             throw new ApiError(400, "thumbnail image is required");
@@ -187,9 +203,9 @@ const updateThumbnail = asyncHandler ( async (req, res) => {
 
         let thumbnailID = video.thumbnail;
         thumbnailID = thumbnailID.split("/");
-        thumbnailID = thumbnailID[thumbnailID-1].split(".")[0];
+        thumbnailID = thumbnailID[thumbnailID.length-1].split(".")[0];
         
-        console.log(thumbnailID);
+        // console.log(thumbnailID);
 
         await deleteCloudinaryImage(thumbnailID);
     
@@ -205,12 +221,13 @@ const updateThumbnail = asyncHandler ( async (req, res) => {
             {
                 new: true
             }
-        ).select("-owner");
+        );
     
         return res.status(200).json(
             new ApiResponse(200, finalVideo, "thumbnail updated successfully")
         )
     } catch (error) {
+        // console.log(error);
         throw new ApiError(500, "Something went wrong while updating thumbnail")
     }
 
@@ -222,13 +239,18 @@ const deleteVideo = asyncHandler(async (req, res) => {
 
     const video = await Video.findById(videoId);
 
-    if(video.owner != req.user?._id){
+    if(!video.owner.equals(req.user?._id)){
         throw new ApiError(401, "You are not authorized to delete a video");
     }
 
     // delete likes of video under like schema, comments under comment schema, remove video under playlist schema
     // delete thumnail & video from cloudinary
-    // will come after completion of all
+    
+    // const likes = await Like.find({video: videoId});
+    // for (let i = 0; i < likes.length; i++) {
+    //     const element = likes[i];
+    //     await Like.findOneAndDelete(element);
+    // }
 })
 
 const togglePublishStatus = asyncHandler(async (req, res) => {
@@ -237,7 +259,7 @@ const togglePublishStatus = asyncHandler(async (req, res) => {
     
         const video = await Video.findById(videoId);
     
-        if(video.owner != req.user?._id){
+        if(!video.owner.equals(req.user?._id)){
             throw new ApiError(401, "You are not authorized to change status of publish of a video")
         }
     

@@ -4,6 +4,7 @@ import {User} from "../models/user.model.js"
 import {ApiError} from "../utils/ApiError.js"
 import {ApiResponse} from "../utils/ApiResponse.js"
 import {asyncHandler} from "../utils/asyncHandler.js"
+import { Like } from "../models/like.model.js"
 
 const createTweet = asyncHandler(async (req, res) => {
     //TODO: create tweet
@@ -38,7 +39,7 @@ const getUserTweets = asyncHandler(async (req, res) => {
     const user = await User.aggregate([
         {
             $match: {
-                username: username
+                username: username.toLowerCase()
             }
         },
         {
@@ -54,13 +55,6 @@ const getUserTweets = asyncHandler(async (req, res) => {
                         }
                     }
                 ]
-            }
-        },
-        {
-            $addFields: {
-                tweets: {
-                    $first: "$tweets"
-                }
             }
         },
         {
@@ -94,13 +88,13 @@ const updateTweet = asyncHandler(async (req, res) => {
         throw new ApiError(400, "tweet id & content required for update tweet");
     }
 
-    const tweet = new Tweet.findById(tweetId);
+    const tweet = await Tweet.findById(tweetId);
 
     if(!tweet){
         throw new ApiError(500, "error while fetching tweet details")
     }
 
-    if(tweet.owner != req.user?._id){
+    if(!tweet.owner.equals(req.user?._id)){
         throw new ApiError(401, "you are not authorized to update this tweet");
     }
 
@@ -115,31 +109,33 @@ const updateTweet = asyncHandler(async (req, res) => {
 
 const deleteTweet = asyncHandler(async (req, res) => {
     //TODO: delete tweet
-    try {
-        const { tweetId } = req.params;
-    
-        if(!tweetId){
-            throw new ApiError(400, "tweet id is required for delete tweet");
-        }
-    
-        const tweet = await Tweet.findById(tweetId);
-    
-        if(!tweet){
-            throw new ApiError(500, "error fetching tweet details");
-        }
-    
-        if(tweet.owner != req.user?._id){
-            throw new ApiError(401, "you are not authorized to delete tweet");
-        }
-    
-        await Tweet.findByIdAndDelete(tweetId);
-    
-        return res.status(200).json(
-            new ApiResponse(200, "", "tweet deleted successfully")
-        )
-    } catch (error) {
-        throw new ApiError(500, "something went wrong while delete tweet");
+    const { tweetId } = req.params;
+
+    if(!tweetId){
+        throw new ApiError(400, "tweet id is required for delete tweet");
     }
+
+    const tweet = await Tweet.findById(tweetId);
+
+    if(!tweet){
+        throw new ApiError(500, "error fetching tweet details");
+    }
+
+    if(!tweet.owner.equals(req.user?._id)){
+        throw new ApiError(401, "you are not authorized to delete tweet");
+    }
+
+    await Tweet.findByIdAndDelete(tweetId);
+
+    // delete likes of that tweet in Like collection as well
+
+    // const likes = await Like.find({tweet: tweetId});
+
+    console.log(likes);
+
+    return res.status(200).json(
+        new ApiResponse(200, "", "tweet deleted successfully")
+    )
 })
 
 export {

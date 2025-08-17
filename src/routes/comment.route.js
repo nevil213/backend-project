@@ -1,6 +1,6 @@
 import { Router } from "express"
-import { verifyJWT } from "../middlewares/auth.middleware";
-import { addComment, deleteComment, updateComment } from "../controllers/comment.controller";
+import { verifyJWT } from "../middlewares/auth.middleware.js";
+import { addComment, deleteComment, updateComment } from "../controllers/comment.controller.js";
 
 
 const router = Router();
@@ -8,8 +8,8 @@ const router = Router();
 
 router.use(verifyJWT);
 
-router.route("/add-comment/:videoId").post(addComment);
-router.route("/update-comment/:commentId").put(updateComment);
-router.route("delete-comment/:commentId").delete(deleteComment);
+router.route("/:videoId").post(addComment);
+router.route("/:commentId").put(updateComment);
+router.route("/:commentId").delete(deleteComment);
 
 export default router;

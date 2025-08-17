@@ -12,23 +12,28 @@ const toggleVideoLike = asyncHandler(async (req, res) => {
     }
     try {
         const like = await Like.find({video: videoId, likedBy: req.user?._id});
-    
-        if(!like){
+        
+        // console.log(like)
+
+        if(like.length==0){
             await Like.create({
                 video: videoId,
                 likedBy: req.user?._id
             })
+            return res.status(200).json(
+                new ApiResponse(200, "", "video liked successfully")
+            )
         }
         else{
             await Like.findOneAndDelete({
                 video: videoId,
                 likedBy: req.user?._id
             })
+            return res.status(200).json(
+                new ApiResponse(200, "", "video un-liked successfully")
+            )
         }
     
-        return res.status(200).json(
-            new ApiResponse(200, "", "video like toggled successfully")
-        )
     } catch (error) {
         throw new ApiError(500, "something went wrong while toggling video like")
     }  
@@ -43,22 +48,25 @@ const toggleCommentLike = asyncHandler(async (req, res) => {
     try {
         const like = await Like.find({comment: commentId, likedBy: req.user?._id});
     
-        if(!like){
+        if(like.length == 0){
             await Like.create({
                 comment: commentId,
                 likedBy: req.user?._id
             })
+            return res.status(200).json(
+                new ApiResponse(200, "", "comment liked successfully")
+            )
         }
         else{
             await Like.findOneAndDelete({
                 comment: commentId,
                 likedBy: req.user?._id
             })
+            return res.status(200).json(
+                new ApiResponse(200, "", "comment un-liked successfully")
+            )
         }
     
-        return res.status(200).json(
-            new ApiResponse(200, "", "comment like toggled successfully")
-        )
     } catch (error) {
         throw new ApiError(500, "something went wrong while toggling comment like")
     }  
@@ -74,22 +82,25 @@ const toggleTweetLike = asyncHandler(async (req, res) => {
     try {
         const like = await Like.find({tweet: tweetId, likedBy: req.user?._id});
     
-        if(!like){
+        if(like.length == 0){
             await Like.create({
                 tweet: tweetId,
                 likedBy: req.user?._id
             })
+            return res.status(200).json(
+                new ApiResponse(200, "", "tweet liked successfully")
+            )
         }
         else{
             await Like.findOneAndDelete({
                 tweet: tweetId,
                 likedBy: req.user?._id
             })
+            return res.status(200).json(
+                new ApiResponse(200, "", "tweet un-liked successfully")
+            )
         }
     
-        return res.status(200).json(
-            new ApiResponse(200, "", "tweet like toggled successfully")
-        )
     } catch (error) {
         throw new ApiError(500, "something went wrong while toggling tweet like")
     }  
@@ -97,32 +108,62 @@ const toggleTweetLike = asyncHandler(async (req, res) => {
 
 const getLikedVideos = asyncHandler(async (req, res) => {
     //TODO: get all liked videos
-    try {
         const likedVideos = await Like.aggregate([
             {
                 $match: {
-                    likedBy: req.user?._id
+                    likedBy: req.user?._id,
+                    video: {$exists: true, $ne: null},
                 }
             },
             {
-                $project: {
-                    video: 1
+                $lookup: {
+                    from: "videos",
+                    localField: "video",
+                    foreignField: "_id",
+                    as: "videos",
+                    pipeline: [
+                        {
+                            $match: {
+                                isPublished: true
+                            }
+                        },
+                        {
+                            $project: {
+                                _id: 1,
+                                thumbnail: 1,
+                                title: 1,
+                                duration: 1,
+                                views: 1,
+                                owner: 1,
+                                createdAt: 1
+                            }
+                        },
+                        {
+                            $lookup: {
+                                from: "users",
+                                localField: "owner",
+                                foreignField: "_id",
+                                as: "owner",
+                                pipeline: [
+                                    {
+                                        $project: {
+                                            username: 1,
+                                            fullname: 1,
+                                            avatar: 1
+                                        }
+                                    }
+                                ]
+                            }
+                        }
+                    ]
                 }
             }
         ]);
-
-        if(!likedVideos){
-            return res.status(404).json(
-                new ApiResponse(200, "", "you have not liked to any video")
-            )
-        }
     
         return res.status(200).json(
             new ApiResponse(200, likedVideos, "liked videos fetched successfully")
         )
-    } catch (error) {
-        throw new ApiError(500, "something went wrong while fetching liked videos")
-    }
+    
 })
 
 export {
