@@ -6,7 +6,7 @@ import { uploadOnCloudinary } from "../utils/cloudinary.js";
 import fs from "fs"
 import jwt from "jsonwebtoken"
 import bcrypt from "bcrypt";
-import { deleteCloudinaryImage } from "../utils/deleteCloudinaryImage.js";
+import { deleteCloudinaryImage } from "../utils/deleteCloudinaryFile.js";
 
 const generateAccessAndRefreshToken = async (userid) => {
     try {

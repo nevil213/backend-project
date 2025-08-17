@@ -3,6 +3,7 @@ import {Comment} from "../models/comment.model.js"
 import {ApiError} from "../utils/ApiError.js"
 import {ApiResponse} from "../utils/ApiResponse.js"
 import {asyncHandler} from "../utils/asyncHandler.js"
+import { Like } from "../models/like.model.js"
 
 const getVideoComments = asyncHandler(async (req, res) => {
     //TODO: get all comments for a video
@@ -77,6 +78,8 @@ const deleteComment = asyncHandler(async (req, res) => {
     await Comment.findByIdAndDelete(commentId);
     
     // delete likes of that comment in Like collection as well
+
+    await Like.deleteMany({comment: commentId});
 
     return res.status(200).json(
         new ApiResponse(200, "", "comment deleted successfully")

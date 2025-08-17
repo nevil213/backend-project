@@ -2,11 +2,14 @@ import mongoose, {isValidObjectId} from "mongoose"
 import {Video} from "../models/video.model.js"
 import {User} from "../models/user.model.js"
 import {Like} from "../models/like.model.js"
+import {Comment} from "../models/comment.model.js"
+import {Playlist} from "../models/playlist.model.js"
 import {ApiError} from "../utils/ApiError.js"
 import {ApiResponse} from "../utils/ApiResponse.js"
 import {asyncHandler} from "../utils/asyncHandler.js"
 import {uploadOnCloudinary} from "../utils/cloudinary.js"
-import { deleteCloudinaryImage } from "../utils/deleteCloudinaryImage.js"
+import { deleteCloudinaryImage } from "../utils/deleteCloudinaryFile.js"
+import { deleteCloudinaryVideo } from "../utils/deleteCloudinaryFile.js"
 
 
 const getAllVideos = asyncHandler(async (req, res) => {
@@ -15,47 +18,43 @@ const getAllVideos = asyncHandler(async (req, res) => {
 })
 
 const publishAVideo = asyncHandler(async (req, res) => {
-    try {
-        const { title, description } = req.body
-        // TODO: get video, upload to cloudinary, create video
-        if(!(title && description)){
-            throw new ApiError(200, "Title and Description required")
-        }
-
-        // console.log(req.files?.video[0]?.path);
     
-        const videoRes = await uploadOnCloudinary(req.files?.video[0]?.path);
-    
-        if(!videoRes){
-            throw new ApiError(200, "failed to upload video")
-        }
-        
-        const thumbnailRes = await uploadOnCloudinary(req.files?.thumbnail[0]?.path);
-        
-        if(!thumbnailRes){
-            throw new ApiError(200, "failed to upload video")
-        }
-    
-        const video = await Video.create({
-            videoFile: videoRes?.url,
-            thumbnail: thumbnailRes?.url,
-            title,
-            description,
-            duration: videoRes.duration,
-            owner: req.user?._id        
-        })
-    
-        if(!video){
-            throw new ApiError(200, "failed to upload video")
-        }
-    
-        return res.status(200).json(
-            new ApiResponse(200, video,"video published successfully")
-        )
-    } catch (error) {
-        console.log(error)
-        throw new ApiError(500, "something went wrong while publishing a video")
+    const { title, description } = req.body
+    // TODO: get video, upload to cloudinary, create video
+    if(!(title && description)){
+        throw new ApiError(200, "Title and Description required")
     }
+
+    // console.log(req.files?.video[0]?.path);
+
+    const videoRes = await uploadOnCloudinary(req.files?.video[0]?.path);
+
+    if(!videoRes){
+        throw new ApiError(200, "failed to upload video")
+    }
+    
+    const thumbnailRes = await uploadOnCloudinary(req.files?.thumbnail[0]?.path);
+    
+    if(!thumbnailRes){
+        throw new ApiError(200, "failed to upload video")
+    }
+
+    const video = await Video.create({
+        videoFile: videoRes?.url,
+        thumbnail: thumbnailRes?.url,
+        title,
+        description,
+        duration: videoRes.duration,
+        owner: req.user?._id        
+    })
+
+    if(!video){
+        throw new ApiError(200, "failed to upload video")
+    }
+
+    return res.status(200).json(
+        new ApiResponse(200, video,"video published successfully")
+    )
 
 })
 
@@ -243,14 +242,51 @@ const deleteVideo = asyncHandler(async (req, res) => {
         throw new ApiError(401, "You are not authorized to delete a video");
     }
 
-    // delete likes of video under like schema, comments under comment schema, remove video under playlist schema
+    // delete likes of video under like schema, comments under comment schema, like of comments of video, remove video under playlist schema
     // delete thumnail & video from cloudinary
+
+    // console.log(video)
+
+    const videoFile = video.videoFile
+    const thumbnail = video.thumbnail
+
+    let VideoPublicId = videoFile.split("/")
+    VideoPublicId = VideoPublicId[VideoPublicId.length - 1].split(".")[0]
     
-    // const likes = await Like.find({video: videoId});
-    // for (let i = 0; i < likes.length; i++) {
-    //     const element = likes[i];
-    //     await Like.findOneAndDelete(element);
-    // }
+    // console.log(VideoPublicId);
+    
+    let thumbnailPublicId = thumbnail.split("/")
+    thumbnailPublicId = thumbnailPublicId[thumbnailPublicId.length - 1].split(".")[0]
+    
+    try {
+            await deleteCloudinaryVideo(VideoPublicId)
+            await deleteCloudinaryImage(thumbnailPublicId)
+    } catch (error) {
+        throw new ApiError(500, "something went wrong while deleting videos & thumbnail")
+    }
+    
+    await Video.findByIdAndDelete(videoId);
+
+    await Like.deleteMany({ video: videoId });
+
+    const comment = await Comment.find({ video: videoId });
+
+    await Comment.deleteMany({ video: videoId });
+
+    await Playlist.updateMany({}, {
+        $pull: {
+            videos: new mongoose.Types.ObjectId(videoId)
+        }
+    })
+
+    for (let i = 0; i < comment.length; i++) {
+        console.log(comment[i]._id)
+        await Like.deleteMany({ comment: comment[i]._id});
+    }
+
+    return res.status(200).json(
+        new ApiResponse(200, comment, "done")
+    )
 })
 
 const togglePublishStatus = asyncHandler(async (req, res) => {

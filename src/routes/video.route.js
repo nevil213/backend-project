@@ -24,7 +24,7 @@ router.route("/v/change-details/:videoId").patch(updateVideoDetails);
 
 router.route("/v/change-thumbnail/:videoId").patch(upload.single("thumbnail"), updateThumbnail);
 
-router.route("/v/delete-video/:videoId").delete(deleteVideo);  // remained for testing
+router.route("/v/delete-video/:videoId").delete(deleteVideo);
 
 router.route("/v/toggle-publish-status/:videoId").post(togglePublishStatus);
 
